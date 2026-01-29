@@ -1,4 +1,5 @@
-const API_BASE = "http://127.0.0.1:8000"
+const API_BASE = "https://movie-recommend-backend-te1z.onrender.com"
+// const API_BASE = "http://127.0.0.1:8000"
 
 export async function fetchMovies(page = 1, limit = 50) {
   const res = await fetch(
