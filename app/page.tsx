@@ -22,53 +22,58 @@ interface SelectedMovie {
 const PAGE_LIMIT = 50
 
 export default function Home() {
-  // -------- MOVIES --------
+  // ---------------- MOVIES ----------------
   const [movies, setMovies] = useState<Movie[]>([])
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const [loadingMovies, setLoadingMovies] = useState(false)
 
-  // -------- SELECTION --------
+  // ---------------- SELECTION ----------------
   const [selectedMovies, setSelectedMovies] = useState<SelectedMovie[]>([])
 
-  // -------- RECOMMENDATIONS --------
+  // ---------------- RECOMMENDATIONS ----------------
   const [recommendedMovies, setRecommendedMovies] = useState<Movie[]>([])
   const [showRecommendations, setShowRecommendations] = useState(false)
   const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false)
 
+  // ---------------- SEARCH ----------------
   const [search, setSearch] = useState("")
 
-
-  // -------- LOAD MOVIES (PAGINATED) --------
+  // ---------------- LOAD MOVIES ----------------
   const loadMovies = useCallback(async () => {
     if (loadingMovies || !hasMore) return
 
     setLoadingMovies(true)
+
     try {
       const data = await fetchMovies(page, PAGE_LIMIT)
 
+      // ✅ SAFETY CHECK
+      if (!Array.isArray(data.movies)) {
+        throw new Error("Movies API did not return movies array")
+      }
+
       setMovies((prev) => [...prev, ...data.movies])
 
-      const loadedCount = movies.length + data.movies.length
-      if (loadedCount >= data.total) {
+      const loaded = (page - 1) * PAGE_LIMIT + data.movies.length
+      if (loaded >= data.total) {
         setHasMore(false)
       } else {
         setPage((p) => p + 1)
       }
     } catch (err) {
-      console.error("Failed to load movies", err)
+      console.error("Failed to load movies:", err)
     } finally {
       setLoadingMovies(false)
     }
-  }, [page, hasMore, loadingMovies, movies.length])
+  }, [page, hasMore, loadingMovies])
 
   // Initial load
   useEffect(() => {
     loadMovies()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // -------- SELECT MOVIE --------
+  // ---------------- SELECT MOVIE ----------------
   const handleSelectMovie = useCallback((movie: Movie) => {
     setSelectedMovies((prev) => {
       const exists = prev.find(
@@ -87,7 +92,7 @@ export default function Home() {
     setShowRecommendations(false)
   }, [])
 
-  // -------- CHANGE RATING --------
+  // ---------------- CHANGE RATING ----------------
   const handleRatingChange = useCallback(
     (movieId: number, rating: number) => {
       setSelectedMovies((prev) =>
@@ -101,7 +106,7 @@ export default function Home() {
     []
   )
 
-  // -------- REMOVE MOVIE --------
+  // ---------------- REMOVE MOVIE ----------------
   const handleRemoveMovie = useCallback((movieId: number) => {
     setSelectedMovies((prev) =>
       prev.filter((sm) => sm.movie.movieId !== movieId)
@@ -109,29 +114,35 @@ export default function Home() {
     setShowRecommendations(false)
   }, [])
 
-  // -------- GET RECOMMENDATIONS --------
+  // ---------------- GET RECOMMENDATIONS ----------------
   const handleGetRecommendations = useCallback(async () => {
+    if (selectedMovies.length < 3) return
+
     setIsLoadingRecommendations(true)
 
     try {
-      const ratingsPayload = selectedMovies.map((sm) => ({
+      const payload = selectedMovies.map((sm) => ({
         movieId: sm.movie.movieId,
         rating: sm.rating,
       }))
 
-      const data = await fetchRecommendationsFromRatings(ratingsPayload)
+      const data = await fetchRecommendationsFromRatings(payload)
+
+      if (!Array.isArray(data.recommendations)) {
+        throw new Error("Invalid recommendation response")
+      }
 
       setRecommendedMovies(data.recommendations)
       setShowRecommendations(true)
     } catch (err) {
-      console.error("Recommendation error", err)
+      console.error("Recommendation error:", err)
       alert("Failed to get recommendations")
     } finally {
       setIsLoadingRecommendations(false)
     }
   }, [selectedMovies])
 
-  // -------- HELPERS --------
+  // ---------------- HELPERS ----------------
   const isMovieSelected = useCallback(
     (movieId: number) =>
       selectedMovies.some((sm) => sm.movie.movieId === movieId),
@@ -149,41 +160,39 @@ export default function Home() {
   )
 
   const filteredMovies = movies.filter((movie) =>
-  movie.title.toLowerCase().includes(search.toLowerCase())
-    )
+    movie.title.toLowerCase().includes(search.toLowerCase())
+  )
 
-
-  // -------- RENDER --------
+  // ---------------- RENDER ----------------
   return (
     <div className="min-h-screen bg-background">
       <Header search={search} onSearchChange={setSearch} />
 
       <main className="container mx-auto px-4 py-8">
-        {/* HEADER */}
+        {/* HERO */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
           className="text-center mb-10"
         >
           <h1 className="text-3xl md:text-4xl font-bold mb-3">
             Discover Your Next Favorite Movie
           </h1>
           <p className="text-muted-foreground max-w-2xl mx-auto">
-            Select a few movies you like, rate them, and get personalized recommendations.
+            Select movies you like, rate them, and get personalized recommendations.
           </p>
         </motion.div>
 
         <div className="flex flex-col lg:flex-row gap-8">
           {/* MOVIE GRID */}
           <div className="flex-1">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
               {filteredMovies.map((movie, index) => (
                 <motion.div
                   key={movie.movieId}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: index * 0.02 }}
+                  transition={{ delay: index * 0.01 }}
                 >
                   <MovieCard
                     movie={movie}
@@ -204,7 +213,7 @@ export default function Home() {
                 <button
                   onClick={loadMovies}
                   disabled={loadingMovies}
-                  className="px-6 py-3 rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                  className="px-6 py-3 rounded-lg bg-primary text-primary-foreground disabled:opacity-50"
                 >
                   {loadingMovies ? "Loading..." : "Load More Movies"}
                 </button>
@@ -213,7 +222,7 @@ export default function Home() {
           </div>
 
           {/* SELECTED PANEL */}
-          <aside className="lg:w-72 xl:w-80 shrink-0">
+          <aside className="lg:w-72 xl:w-80">
             <SelectedPanel
               selectedMovies={selectedMovies}
               onRemove={handleRemoveMovie}
@@ -230,7 +239,6 @@ export default function Home() {
               initial={{ opacity: 0, y: 40 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 40 }}
-              transition={{ duration: 0.5 }}
               className="mt-12"
             >
               <RecommendationsSection movies={recommendedMovies} />
